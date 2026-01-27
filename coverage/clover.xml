@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<coverage generated="1769532226732" clover="3.2.0">
+  <project timestamp="1769532226732" name="All files">
+    <metrics statements="15" coveredstatements="15" conditionals="16" coveredconditionals="16" methods="1" coveredmethods="1" elements="32" coveredelements="32" complexity="0" loc="15" ncloc="15" packages="1" files="1" classes="1"/>
+    <file name="heatingController.js" path="D:\ucheba\3 курс\6 сем\АТБП\ЛР 1\1\src\heatingController.js">
+      <metrics statements="15" coveredstatements="15" conditionals="16" coveredconditionals="16" methods="1" coveredmethods="1"/>
+      <line num="4" count="16" type="stmt"/>
+      <line num="6" count="16" type="cond" truecount="2" falsecount="0"/>
+      <line num="12" count="4" type="stmt"/>
+      <line num="14" count="12" type="cond" truecount="4" falsecount="0"/>
+      <line num="15" count="1" type="stmt"/>
+      <line num="19" count="11" type="cond" truecount="2" falsecount="0"/>
+      <line num="20" count="1" type="stmt"/>
+      <line num="23" count="10" type="stmt"/>
+      <line num="26" count="10" type="cond" truecount="2" falsecount="0"/>
+      <line num="27" count="5" type="stmt"/>
+      <line num="28" count="5" type="cond" truecount="2" falsecount="0"/>
+      <line num="29" count="4" type="stmt"/>
+      <line num="31" count="1" type="stmt"/>
+      <line num="34" count="9" type="stmt"/>
+      <line num="37" count="1" type="stmt"/>
+    </file>
+  </project>
+</coverage>
