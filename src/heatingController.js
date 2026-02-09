@@ -1,8 +1,15 @@
 "use strict";
 
-function shouldTurnOnBoiler(currentTemp, targetTemp, mode) {
-  const ABSOLUTE_ZERO = -273.15;
+const sensorService = require("./sensorService");
+const boilerService = require("./boilerService");
 
+const ABSOLUTE_ZERO = -273.15;
+
+/**
+ * Базовая (синхронная) логика из ЛР1.
+ * Используется как внутренний "движок" принятия решения.
+ */
+function shouldTurnOnBoiler(currentTemp, targetTemp, mode) {
   if (
     typeof currentTemp !== "number" ||
     typeof targetTemp !== "number" ||
@@ -31,7 +38,68 @@ function shouldTurnOnBoiler(currentTemp, targetTemp, mode) {
     throw new Error('Неизвестный режим работы. Ожидается "Эко" или "Комфорт".');
   }
 
-  return targetTemp - currentTemp >= threshold;
+  return {
+    normalizedMode,
+    shouldTurnOn: targetTemp - currentTemp >= threshold,
+  };
 }
 
-module.exports = { shouldTurnOnBoiler };
+/**
+ * Вариант 6 (ЛР2): контроллер отопления,
+ * который получает текущую температуру из асинхронного SensorService.
+ *
+ * - Изолируемся от реального сенсора через мок SensorService.getInteriorTemperature().
+ * - Управляем котлом через BoilerService (turnOn/turnOff), который тоже мокируется.
+ * - При "дребезге" датчика (undefined/null/ошибка) выдаём ошибку безопасности
+ *   и гарантированно отключаем котёл.
+ */
+async function controlHeating(targetTemp, mode) {
+  try {
+    const currentTemp = await sensorService.getInteriorTemperature();
+
+    // Дребезг / некорректные данные от сенсора
+    if (
+      currentTemp === undefined ||
+      currentTemp === null ||
+      typeof currentTemp !== "number" ||
+      Number.isNaN(currentTemp) ||
+      currentTemp < ABSOLUTE_ZERO
+    ) {
+      await boilerService.turnOff();
+      throw new Error(
+        "Ошибка безопасности: недопустимые данные датчика, котёл отключен.",
+      );
+    }
+
+    const { normalizedMode, shouldTurnOn } = shouldTurnOnBoiler(
+      currentTemp,
+      targetTemp,
+      mode,
+    );
+
+    if (shouldTurnOn) {
+      await boilerService.turnOn();
+    } else {
+      await boilerService.turnOff();
+    }
+
+    return {
+      status: "ok",
+      mode: normalizedMode,
+      currentTemp,
+      targetTemp,
+      shouldTurnOn,
+    };
+  } catch (error) {
+    // Любая ошибка работы сенсора также трактуется как ошибка безопасности.
+    if (!/Ошибка безопасности/.test(error.message)) {
+      await boilerService.turnOff();
+      throw new Error(
+        "Ошибка безопасности: сбой чтения с датчика, котёл отключен.",
+      );
+    }
+    throw error;
+  }
+}
+
+module.exports = { shouldTurnOnBoiler, controlHeating };
