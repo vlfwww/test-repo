@@ -5,10 +5,6 @@ const boilerService = require("./boilerService");
 
 const ABSOLUTE_ZERO = -273.15;
 
-/**
- * Базовая (синхронная) логика из ЛР1.
- * Используется как внутренний "движок" принятия решения.
- */
 function shouldTurnOnBoiler(currentTemp, targetTemp, mode) {
   if (
     typeof currentTemp !== "number" ||
@@ -44,20 +40,10 @@ function shouldTurnOnBoiler(currentTemp, targetTemp, mode) {
   };
 }
 
-/**
- * Вариант 6 (ЛР2): контроллер отопления,
- * который получает текущую температуру из асинхронного SensorService.
- *
- * - Изолируемся от реального сенсора через мок SensorService.getInteriorTemperature().
- * - Управляем котлом через BoilerService (turnOn/turnOff), который тоже мокируется.
- * - При "дребезге" датчика (undefined/null/ошибка) выдаём ошибку безопасности
- *   и гарантированно отключаем котёл.
- */
 async function controlHeating(targetTemp, mode) {
   try {
     const currentTemp = await sensorService.getInteriorTemperature();
 
-    // Дребезг / некорректные данные от сенсора
     if (
       currentTemp === undefined ||
       currentTemp === null ||
@@ -91,7 +77,6 @@ async function controlHeating(targetTemp, mode) {
       shouldTurnOn,
     };
   } catch (error) {
-    // Любая ошибка работы сенсора также трактуется как ошибка безопасности.
     if (!/Ошибка безопасности/.test(error.message)) {
       await boilerService.turnOff();
       throw new Error(
