@@ -1,26 +1,14 @@
 "use strict";
 
-const sensorService = require("./sensorService");
-const boilerService = require("./boilerService");
-
 const ABSOLUTE_ZERO = -273.15;
 
 function shouldTurnOnBoiler(currentTemp, targetTemp, mode) {
-  if (
-    typeof currentTemp !== "number" ||
-    typeof targetTemp !== "number" ||
-    Number.isNaN(currentTemp) ||
-    Number.isNaN(targetTemp)
-  ) {
+  if (typeof currentTemp !== "number" || typeof targetTemp !== "number" || Number.isNaN(currentTemp)) {
     throw new Error("Температуры должны быть числами.");
   }
-  if (currentTemp < ABSOLUTE_ZERO || targetTemp < ABSOLUTE_ZERO) {
-    throw new Error(
-      "Температура не может быть ниже абсолютного нуля (-273.15°C).",
-    );
-  }
-  if (typeof mode !== "string") {
-    throw new Error("Режим работы должен быть строкой.");
+
+  if (currentTemp < ABSOLUTE_ZERO) {
+    throw new Error("Ошибка: температура ниже абсолютного нуля (-273.15°C).");
   }
 
   const normalizedMode = mode.trim().toLowerCase();
@@ -31,60 +19,37 @@ function shouldTurnOnBoiler(currentTemp, targetTemp, mode) {
   } else if (normalizedMode === "комфорт") {
     threshold = 0.5;
   } else {
-    throw new Error('Неизвестный режим работы. Ожидается "Эко" или "Комфорт".');
+    throw new Error('Неизвестный режим работы.');
   }
 
   return {
-    normalizedMode,
-    shouldTurnOn: targetTemp - currentTemp >= threshold,
+    shouldTurnOn: (targetTemp - currentTemp) >= threshold,
   };
 }
 
-async function controlHeating(targetTemp, mode) {
-  try {
-    const currentTemp = await sensorService.getInteriorTemperature();
+async function controlHeating(targetTemp, mode, services) {
+  const currentTemp = await services.sensorService.getInteriorTemperature();
 
-    if (
-      currentTemp === undefined ||
-      currentTemp === null ||
-      typeof currentTemp !== "number" ||
-      Number.isNaN(currentTemp) ||
-      currentTemp < ABSOLUTE_ZERO
-    ) {
-      await boilerService.turnOff();
-      throw new Error(
-        "Ошибка безопасности: недопустимые данные датчика, котёл отключен.",
-      );
-    }
-
-    const { normalizedMode, shouldTurnOn } = shouldTurnOnBoiler(
-      currentTemp,
-      targetTemp,
-      mode,
-    );
-
-    if (shouldTurnOn) {
-      await boilerService.turnOn();
-    } else {
-      await boilerService.turnOff();
-    }
-
-    return {
-      status: "ok",
-      mode: normalizedMode,
-      currentTemp,
-      targetTemp,
-      shouldTurnOn,
-    };
-  } catch (error) {
-    if (!/Ошибка безопасности/.test(error.message)) {
-      await boilerService.turnOff();
-      throw new Error(
-        "Ошибка безопасности: сбой чтения с датчика, котёл отключен.",
-      );
-    }
-    throw error;
+  if (currentTemp === undefined || currentTemp === null) {
+    if (services.boilerService) await services.boilerService.turnOff();
+    throw new Error("Ошибка безопасности: датчик недоступен");
   }
+
+  const { shouldTurnOn } = shouldTurnOnBoiler(currentTemp, targetTemp, mode);
+
+  if (services.boilerService) {
+    if (shouldTurnOn) {
+      await services.boilerService.turnOn();
+    } else {
+      await services.boilerService.turnOff();
+    }
+  }
+
+  return {
+    status: shouldTurnOn ? "heating_on" : "heating_off",
+    currentTemp,
+    targetTemp
+  };
 }
 
-module.exports = { shouldTurnOnBoiler, controlHeating };
+module.exports = { controlHeating };
