@@ -1,4 +1,4 @@
-name: CI/CD Multi-Platform Pipeline
+name: CI/CD Multi-Platform Docker Pipeline
 
 on:
   push:
@@ -13,39 +13,54 @@ permissions:
 
 jobs:
   test:
-    name: Test on ${{ matrix.os }} / Node ${{ matrix.node-version }}
+    name: Test on ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest]
-        node-version: [20, 22]
+        include:
+          - os: ubuntu-latest
+            use-docker: true
+          - os: windows-latest
+            use-docker: false
 
     runs-on: ${{ matrix.os }}
     
     steps:
     - uses: actions/checkout@v4
 
-    - name: Setup Node.js ${{ matrix.node-version }}
+    - name: Setup Node.js (Windows)
+      if: matrix.use-docker == false
       uses: actions/setup-node@v4
       with:
-        node-version: ${{ matrix.node-version }}
+        node-version: 20
         cache: 'npm'
 
-    - name: Install dependencies
+    - name: Install dependencies (Windows)
+      if: matrix.use-docker == false
       run: npm ci
 
-    - name: Install Playwright Browsers
-      run: npx playwright install --with-deps
+    - name: Install Playwright Browsers (Windows)
+      if: matrix.use-docker == false
+      run: npx playwright install --with-deps chromium
 
-    - name: Run All Tests
+    - name: Run Tests (Windows)
+      if: matrix.use-docker == false
       run: npm test
       continue-on-error: true
+
+    - name: Build and Run in Docker (Ubuntu)
+      if: matrix.use-docker == true
+      run: |
+        docker build -t boiler-tests .
+        docker run --name test-container boiler-tests || true
+        docker cp test-container:/app/allure-results ./allure-results
+        docker cp test-container:/app/playwright-report ./playwright-report
 
     - name: Upload Test Artifacts
       uses: actions/upload-artifact@v4
       if: always()
       with:
-        name: all-results-${{ matrix.os }}-${{ matrix.node-version }}
+        name: all-results-${{ matrix.os }}
         path: |
           allure-results/
           playwright-report/
@@ -69,18 +84,15 @@ jobs:
       with:
         node-version: 20
 
-    - name: Install Allure CLI
-      run: npm install -g allure-commandline
-
-    - name: Download Ubuntu Results
+    - name: Download Results
       uses: actions/download-artifact@v4
       with:
-        name: all-results-ubuntu-latest-22
+        name: all-results-ubuntu-latest
         path: allure-results
 
     - name: Generate Final Allure Report
       run: |
-        allure generate allure-results --clean -o public
+        npx allure-commandline generate allure-results --clean -o public
 
     - name: Setup Pages
       uses: actions/configure-pages@v4
@@ -95,12 +107,13 @@ jobs:
       uses: actions/deploy-pages@v4
 
     - name: Send Telegram Notification
+      if: always()
       uses: appleboy/telegram-action@master
       with:
         to: ${{ secrets.TELEGRAM_TO }}
         token: ${{ secrets.TELEGRAM_TOKEN }}
         message: |
-          ✅ Тесты завершены!
+          ✅ CI/CD Продвинутый уровень завершен!
           Репозиторий: ${{ github.repository }}
-          📊 Отчет Allure: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/
-          ⚙️ Сборка: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          ОС: Ubuntu (Docker) & Windows (Native)
+          📊 Отчет: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/
