@@ -45,15 +45,14 @@ jobs:
       uses: actions/upload-artifact@v4
       if: always()
       with:
-        name: report-${{ matrix.os }}-node-${{ matrix.node-version }}
+        name: all-results-${{ matrix.os }}-${{ matrix.node-version }}
         path: |
-          playwright-report/
           allure-results/
-          report.html
+          playwright-report/
         retention-days: 30
 
   deploy:
-    name: Deploy Report & Notify
+    name: Deploy Allure Report
     needs: test
     if: always()
     runs-on: ubuntu-latest
@@ -62,16 +61,31 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     
     steps:
-    - name: Download Results
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: 20
+
+    - name: Install Allure CLI
+      run: npm install -g allure-commandline
+
+    - name: Download Ubuntu Results
       uses: actions/download-artifact@v4
       with:
-        name: report-ubuntu-latest-node-22
-        path: public
+        name: all-results-ubuntu-latest-22
+        path: allure-results
+
+    - name: Generate Final Allure Report
+      run: |
+        allure generate allure-results --clean -o public
 
     - name: Setup Pages
       uses: actions/configure-pages@v4
 
-    - name: Upload artifact
+    - name: Upload artifact to Pages
       uses: actions/upload-pages-artifact@v3
       with:
         path: 'public'
@@ -86,8 +100,7 @@ jobs:
         to: ${{ secrets.TELEGRAM_TO }}
         token: ${{ secrets.TELEGRAM_TOKEN }}
         message: |
-          Тестирование завершено!
-          Статус: ${{ job.status }}
+          ✅ Тесты завершены!
           Репозиторий: ${{ github.repository }}
-          Отчет: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/
-          Детали сборки: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          📊 Отчет Allure: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/
+          ⚙️ Сборка: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
