@@ -68,7 +68,7 @@ jobs:
 
     - name: Install Playwright Browsers
       if: matrix.use-docker == false
-      run: npx playwright install --with-deps chromium
+      run: npx playwright install --with-deps
 
     - name: Run Tests
       if: matrix.use-docker == false
