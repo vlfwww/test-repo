@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Управление отоплением V6</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; background-color: #f0f2f5; }
+        .card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); width: 300px; }
+        .error { color: #d93025; background: #fce8e6; padding: 8px; border-radius: 4px; display: none; margin-top: 10px; }
+        #result { margin-top: 15px; font-weight: bold; font-size: 1.1em; color: #1a73e8; }
+        input, select, button { width: 100%; padding: 8px; margin: 5px 0 15px 0; box-sizing: border-box; }
+        button { background: #1a73e8; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        button:hover { background: #1557b0; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h2>Отопление</h2>
+        <label for="targetTemp">Целевая температура (°C)</label>
+        <input type="number" id="targetTemp" value="20">
+
+        <label for="mode">Режим работы</label>
+        <select id="mode">
+            <option value="Эко">Эко</option>
+            <option value="Комфорт">Комфорт</option>
+        </select>
+
+        <label for="currentTemp">Текущая температура (°C)</label>
+        <input type="number" id="currentTemp" step="0.1">
+
+        <button id="checkBtn">Проверить статус</button>
+
+        <div id="result"></div>
+        <div id="error" class="error"></div>
+    </div>
+
+    <script>
+        document.getElementById('checkBtn').onclick = function() {
+            const target = parseFloat(document.getElementById('targetTemp').value);
+            const current = parseFloat(document.getElementById('currentTemp').value);
+            const mode = document.getElementById('mode').value;
+            const resDiv = document.getElementById('result');
+            const errDiv = document.getElementById('error');
+
+            resDiv.innerText = '';
+            errDiv.style.display = 'none';
+
+            if (isNaN(current)) {
+                errDiv.innerText = "Ошибка: введите число";
+                errDiv.style.display = 'block';
+                return;
+            }
+            if (current < -273.15) {
+                errDiv.innerText = "Ошибка: ниже абсолютного нуля";
+                errDiv.style.display = 'block';
+                return;
+            }
+
+            const threshold = mode === "Эко" ? 3.0 : 0.5;
+            const status = (target - current) >= threshold ? "heating_on" : "heating_off";
+            resDiv.innerText = "Статус: " + status;
+        };
+    </script>
+</body>
+</html>
