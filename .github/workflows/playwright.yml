@@ -1,4 +1,4 @@
-name: CI/CD Multi-Platform Docker Pipeline
+name: CI/CD Multi-Platform Pipeline
 
 on:
   push:
@@ -12,15 +12,33 @@ permissions:
   id-token: write
 
 jobs:
+  # 1. ШАГ: Проверка синтаксиса (Actionlint)
+  lint:
+    name: Lint Workflow
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run Actionlint
+        run: |
+          bash <(curl https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash)
+          ./actionlint
+
+  # 2. ШАГ: Тестирование (Матрица ОС и Node.js)
   test:
-    name: Test on ${{ matrix.os }}
+    needs: lint
+    name: Test on ${{ matrix.os }} / Node ${{ matrix.node-version }}
     strategy:
       fail-fast: false
       matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        node-version: [18, 20, 22]
+        # Указываем, где использовать Docker
         include:
           - os: ubuntu-latest
             use-docker: true
           - os: windows-latest
+            use-docker: false
+          - os: macos-latest
             use-docker: false
 
     runs-on: ${{ matrix.os }}
@@ -28,44 +46,45 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - name: Setup Node.js (Windows)
-      if: matrix.use-docker == false
-      uses: actions/setup-node@v4
-      with:
-        node-version: 20
-        cache: 'npm'
-
-    - name: Install dependencies (Windows)
-      if: matrix.use-docker == false
-      run: npm ci
-
-    - name: Install Playwright Browsers (Windows)
-      if: matrix.use-docker == false
-      run: npx playwright install --with-deps chromium
-
-    - name: Run Tests (Windows)
-      if: matrix.use-docker == false
-      run: npm test
-      continue-on-error: true
-
+    # ЛОГИКА ДЛЯ UBUNTU (Docker)
     - name: Build and Run in Docker (Ubuntu)
       if: matrix.use-docker == true
       run: |
         docker build -t boiler-tests .
         docker run --name test-container boiler-tests || true
         docker cp test-container:/app/allure-results ./allure-results
-        docker cp test-container:/app/playwright-report ./playwright-report
 
+    # ЛОГИКА ДЛЯ WINDOWS И MAC (Native)
+    - name: Setup Node.js ${{ matrix.node-version }}
+      if: matrix.use-docker == false
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ matrix.node-version }}
+        cache: 'npm'
+
+    - name: Install dependencies
+      if: matrix.use-docker == false
+      run: npm ci
+
+    - name: Install Playwright Browsers
+      if: matrix.use-docker == false
+      run: npx playwright install --with-deps chromium
+
+    - name: Run Tests
+      if: matrix.use-docker == false
+      run: npm test
+      continue-on-error: true
+
+    # Загружаем результаты (Artifacts)
     - name: Upload Test Artifacts
       uses: actions/upload-artifact@v4
       if: always()
       with:
-        name: all-results-${{ matrix.os }}
-        path: |
-          allure-results/
-          playwright-report/
-        retention-days: 30
+        name: results-${{ matrix.os }}-${{ matrix.node-version }}
+        path: allure-results/
+        retention-days: 1
 
+  # 3. ШАГ: Деплой отчета
   deploy:
     name: Deploy Allure Report
     needs: test
@@ -79,20 +98,15 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Setup Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: 20
-
-    - name: Download Results
+    - name: Download All Results
       uses: actions/download-artifact@v4
       with:
-        name: all-results-ubuntu-latest
-        path: allure-results
+        path: all-results
+        merge-multiple: true
 
     - name: Generate Final Allure Report
       run: |
-        npx allure-commandline generate allure-results --clean -o public
+        npx allure-commandline generate all-results --clean -o public
 
     - name: Setup Pages
       uses: actions/configure-pages@v4
@@ -113,7 +127,7 @@ jobs:
         to: ${{ secrets.TELEGRAM_TO }}
         token: ${{ secrets.TELEGRAM_TOKEN }}
         message: |
-          ✅ CI/CD Продвинутый уровень завершен!
-          Репозиторий: ${{ github.repository }}
-          ОС: Ubuntu (Docker) & Windows (Native)
+          ✅ Пайплайн завершен!
+          ОС: Win, Mac, Ubuntu (Docker)
+          Node.js: 18, 20, 22
           📊 Отчет: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/
