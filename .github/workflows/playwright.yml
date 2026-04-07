@@ -1,9 +1,15 @@
 name: CI/CD Multi-Platform Pipeline
+
 on:
   push:
     branches: [ main, master ]
   pull_request:
     branches: [ main, master ]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
 
 jobs:
   test:
@@ -46,12 +52,34 @@ jobs:
           report.html
         retention-days: 30
 
-  notify:
-    name: Send Notifications
+  deploy:
+    name: Deploy Report & Notify
     needs: test
     if: always()
     runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    
     steps:
+    - name: Download Results
+      uses: actions/download-artifact@v4
+      with:
+        name: report-ubuntu-latest-node-22
+        path: public
+
+    - name: Setup Pages
+      uses: actions/configure-pages@v4
+
+    - name: Upload artifact
+      uses: actions/upload-pages-artifact@v3
+      with:
+        path: 'public'
+
+    - name: Deploy to GitHub Pages
+      id: deployment
+      uses: actions/deploy-pages@v4
+
     - name: Send Telegram Notification
       uses: appleboy/telegram-action@master
       with:
@@ -59,5 +87,7 @@ jobs:
         token: ${{ secrets.TELEGRAM_TOKEN }}
         message: |
           Тестирование завершено!
+          Статус: ${{ job.status }}
           Репозиторий: ${{ github.repository }}
-          Посмотреть детали: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          Отчет: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/
+          Детали сборки: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
