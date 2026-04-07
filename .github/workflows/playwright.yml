@@ -46,14 +46,18 @@ jobs:
           report.html
         retention-days: 30
 
+  notify:
+    name: Send Notifications
+    needs: test
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
     - name: Send Telegram Notification
       uses: appleboy/telegram-action@master
-      if: always()
       with:
         to: ${{ secrets.TELEGRAM_TO }}
         token: ${{ secrets.TELEGRAM_TOKEN }}
         message: |
-          Статус: ${{ job.status }}
-          ОС: ${{ matrix.os }}
-          Node: ${{ matrix.node-version }}
+          Тестирование завершено!
           Репозиторий: ${{ github.repository }}
+          Посмотреть детали: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
